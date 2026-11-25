@@ -1,25 +1,91 @@
 import Link from "next/link";
+import {
+  Award,
+  Bug,
+  CircleCheck,
+  Clapperboard,
+  Database,
+  Factory,
+  Globe,
+  IdCard,
+  KeyRound,
+  MessagesSquare,
+  Play,
+  Smartphone,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import Sidebar from "@/components/Sidebar";
+import TopBar from "@/components/TopBar";
 import EpisodeGrid, { type EpisodeTile } from "@/components/EpisodeGrid";
-import { IconBell, IconCard, IconCheck, IconHeadphones, IconPlay, IconReplay } from "@/components/Icons";
-import { PROFILE_LABEL, SEASONS, pad } from "@/lib/catalog";
+import EpisodeThumb from "@/components/EpisodeThumb";
+import { PROFILE_LABEL, SEASONS, pad, type Episode } from "@/lib/catalog";
 import { getEpisodes } from "@/lib/data";
-import { DEMO_LEARNER, STATUS_LABEL, statusOf } from "@/lib/demo";
+import { DEMO_LEARNER, STATUS_LABEL, statusOf, type EpisodeStatus } from "@/lib/demo";
+import { cn } from "@/lib/utils";
 
 export const revalidate = 60;
+
+const AREA_ICON: Record<string, LucideIcon> = {
+  "L'inganno ha molte voci": MessagesSquare,
+  "Identità e accessi": KeyRound,
+  "Dispositivi e spazi di lavoro": Smartphone,
+  "Minacce software": Bug,
+  "Lavoro ibrido e digitale": Globe,
+  "Informazioni e dati": Database,
+  "Minacce emergenti": Sparkles,
+  "Contesto ANAS": Factory,
+};
+
+const STATUS_CLASS: Record<EpisodeStatus, string> = {
+  done: "bg-emerald-50 text-emerald-800",
+  now: "bg-brand-orange-50 text-brand-orange-ink",
+  next: "bg-slate-100 text-slate-600",
+};
+
+function progressOf(ep: Episode): number {
+  const s = statusOf(ep);
+  if (s === "done") return 100;
+  if (s === "now") return 38; // sample: stopped at decision 2
+  return 0;
+}
 
 export default async function HomePage() {
   const { episodes, source } = await getEpisodes();
   const learner = DEMO_LEARNER;
 
-  const current = episodes.find((e) => e.num === learner.inProgress) ?? episodes[0];
-  const recap = episodes.find((e) => e.num === learner.recapEpisode);
-  const mandatory = episodes.filter((e) => e.mandatoryFor.includes(learner.profile));
   const done = episodes.filter((e) => learner.completed.includes(e.num));
-  const season1 = episodes.filter((e) => e.season === 1);
-  const season1Done = season1.filter((e) => learner.completed.includes(e.num)).length;
-  const extrasDone = done.filter((e) => e.extra).length;
-  const extrasTotal = episodes.filter((e) => e.extra).length;
+  const current = episodes.find((e) => e.num === learner.inProgress);
+  const mandatory = episodes.filter((e) => e.mandatoryFor.includes(learner.profile));
+
+  // "Il mio percorso" table: current episode, last two completed, then upcoming mandatory ones.
+  const tableNums = Array.from(
+    new Set([learner.inProgress, ...learner.completed.slice(-2).reverse(), ...mandatory.map((e) => e.num)]),
+  ).slice(0, 5);
+  const tableRows = tableNums
+    .map((n) => episodes.find((e) => e.num === n))
+    .filter((e): e is Episode => Boolean(e));
+
+  // Recommended: current, next releases, then mandatory not yet seen.
+  const recommendedNums = Array.from(
+    new Set([learner.inProgress, learner.inProgress + 1, ...mandatory.filter((e) => statusOf(e) === "next").map((e) => e.num), learner.recapEpisode]),
+  ).slice(0, 4);
+  const recommended = recommendedNums
+    .map((n) => episodes.find((e) => e.num === n))
+    .filter((e): e is Episode => Boolean(e));
+
+  const areas = Array.from(new Set(episodes.map((e) => e.area))).map((area) => ({
+    area,
+    count: episodes.filter((e) => e.area === area).length,
+    Icon: AREA_ICON[area] ?? Sparkles,
+  }));
+
+  const stats: { value: string; label: string; Icon: LucideIcon; tile: string }[] = [
+    { value: `${episodes.length} episodi`, label: "In catalogo", Icon: Clapperboard, tile: "bg-brand text-white" },
+    { value: `${done.length} completati`, label: `Mese ${learner.currentMonth} di 24`, Icon: CircleCheck, tile: "bg-brand-orange text-brand" },
+    { value: `${done.length} Cyber Card`, label: "Ottenute", Icon: IdCard, tile: "bg-brand-red text-white" },
+    { value: `${learner.badges} badge`, label: "Guadagnati", Icon: Award, tile: "bg-brand-600 text-white" },
+  ];
 
   const tiles: EpisodeTile[] = episodes.map((e) => {
     const status = statusOf(e);
@@ -37,200 +103,211 @@ export default async function HomePage() {
   });
 
   return (
-    <div className="shell">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <Sidebar active="Home" />
-      <main id="contenuto" className="main">
-        <div className="container">
-          <header className="row-between">
-            <div className="stack-16" style={{ gap: 6 }}>
-              <h1 className="h-page">Buongiorno, {learner.name}</h1>
-              <p className="muted">
-                Profilo {PROFILE_LABEL[learner.profile]} · {learner.structure}
-              </p>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button type="button" className="icon-btn" aria-label="Notifiche, 2 nuove">
-                <IconBell />
-                <span className="dot" aria-hidden="true" />
-              </button>
-              <div className="avatar" aria-hidden="true">
-                {learner.initials}
-              </div>
-            </div>
-          </header>
 
-          <div className="row-flex">
-            {current && (
-              <section className="hero" aria-labelledby="next-ep">
-                <div className="thumb">
-                  <span className="thumb-label">[FOTOGRAMMA EPISODIO]</span>
-                  <span className="thumb-num" aria-hidden="true">
-                    {pad(current.num)}
-                  </span>
-                  <div className="play" aria-hidden="true">
-                    <IconPlay size={26} />
-                  </div>
-                  <div className="thumb-progress" aria-hidden="true">
-                    <div style={{ width: "38%" }} />
-                  </div>
-                </div>
-                <div className="hero-body">
-                  <span className="eyebrow">Episodio del mese · Mese {current.month}</span>
-                  <h2 id="next-ep" className="hero-title">
-                    {current.title}
-                  </h2>
-                  <div className="chips">
-                    <span className="tag pill-soft">{current.topic}</span>
-                    {current.mandatoryFor.includes(learner.profile) && (
-                      <span className="tag pill-amber" style={{ fontWeight: 600 }}>
-                        Obbligatorio per il tuo profilo
-                      </span>
-                    )}
-                  </div>
-                  <p className="muted" style={{ lineHeight: 1.5 }}>
-                    Ti sei fermato alla seconda decisione.
-                  </p>
-                  <p className="muted-sm" style={{ margin: 0 }}>
-                    {current.durationMin} min · Sottotitoli IT · Trascrizione · Versione solo audio
-                  </p>
-                  <div className="chips" style={{ gap: 10, marginTop: 4 }}>
-                    <Link href={`/episodi/${pad(current.num)}`} className="btn btn-primary">
-                      {learner.resumeLabel}
-                    </Link>
-                    <Link href={`/episodi/${pad(current.num)}?audio=1`} className="btn">
-                      <IconHeadphones size={18} />
-                      Solo audio
-                    </Link>
-                  </div>
-                </div>
-              </section>
-            )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar
+          name={learner.name}
+          initials={learner.initials}
+          profileLabel={`Profilo ${PROFILE_LABEL[learner.profile]}`}
+          subtitle={current ? `Ti aspetta l'episodio del mese: «${current.title}».` : "Continua il tuo percorso."}
+        />
 
-            <section id="percorso" className="card season-card" aria-labelledby="seasons">
-              <h2 id="seasons" className="h-card">
-                Il tuo percorso
-              </h2>
-              <div className="stack-16" style={{ gap: 10 }}>
-                <div className="row-between" style={{ gap: 8 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>Stagione 1 · «Riconoscere»</span>
-                  <span className="muted-sm">
-                    {season1Done} di {season1.length}
+        <main id="contenuto" className="flex flex-col gap-6 p-5 lg:p-8">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+            <section id="percorso" aria-labelledby="percorso-title" className="min-w-0 rounded-2xl border border-border bg-white p-5 lg:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="percorso-title" className="font-display text-lg font-bold text-brand">
+                  Il mio percorso
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {learner.structure} · profilo {PROFILE_LABEL[learner.profile]}
+                </span>
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead>
+                    <tr className="text-xs font-semibold text-slate-500">
+                      <th scope="col" className="pb-3 font-semibold">Episodio</th>
+                      <th scope="col" className="pb-3 font-semibold">Argomento</th>
+                      <th scope="col" className="pb-3 font-semibold">Avanzamento</th>
+                      <th scope="col" className="pb-3 font-semibold">Priorità</th>
+                      <th scope="col" className="pb-3 font-semibold">Rilascio</th>
+                      <th scope="col" className="pb-3 text-right font-semibold">Azione</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map((e) => {
+                      const pct = progressOf(e);
+                      const isMandatory = e.mandatoryFor.includes(learner.profile);
+                      return (
+                        <tr key={e.num} className="border-t border-border">
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-3">
+                              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 font-display text-sm font-bold text-brand">
+                                {pad(e.num)}
+                              </span>
+                              <span className="font-medium text-brand">{e.title}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4 text-slate-600">{e.topic}</td>
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-2 w-28 overflow-hidden rounded-full bg-slate-100"
+                                role="progressbar"
+                                aria-label={`Avanzamento ${e.title}`}
+                                aria-valuenow={pct}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              >
+                                <div className={cn("h-full rounded-full", pct === 100 ? "bg-brand" : "bg-brand-orange")} style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="w-10 text-xs font-medium text-slate-600 tabular-nums">{pct}%</span>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span
+                              className={cn(
+                                "rounded-md px-2 py-1 text-xs font-semibold",
+                                isMandatory ? "bg-brand-red-50 text-brand-red" : "bg-slate-100 text-slate-600",
+                              )}
+                            >
+                              {isMandatory ? "Obbligatorio" : "Consigliato"}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-slate-600">Mese {e.month}</td>
+                          <td className="py-3 text-right">
+                            <Link
+                              href={`/episodi/${pad(e.num)}`}
+                              aria-label={`Apri ${e.title}`}
+                              className="inline-flex size-9 items-center justify-center rounded-lg text-brand hover:bg-brand-50"
+                            >
+                              <Play size={16} aria-hidden="true" fill="currentColor" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="statistiche" aria-label="I tuoi numeri" className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+              {stats.map(({ value, label, Icon, tile }) => (
+                <div key={value} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4">
+                  <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", tile)}>
+                    <Icon size={20} aria-hidden="true" />
                   </span>
+                  <div className="min-w-0 leading-tight">
+                    <p className="font-display text-base font-bold text-brand">{value}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </div>
                 </div>
-                <div
-                  className="bar"
-                  role="progressbar"
-                  aria-label="Stagione 1"
-                  aria-valuenow={season1Done}
-                  aria-valuemin={0}
-                  aria-valuemax={season1.length}
-                >
-                  <div style={{ width: `${season1.length ? (season1Done / season1.length) * 100 : 0}%` }} />
-                </div>
-                <span className="muted-sm">Test finale dal mese 12 · soglia 80% · tentativi illimitati</span>
-              </div>
-              <div className="stack-16" style={{ gap: 10 }}>
-                <div className="row-between" style={{ gap: 8 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15 }}>Stagione 2 · «Reagire»</span>
-                  <span className="muted-sm">dal mese 13</span>
-                </div>
-                <div className="bar locked" aria-hidden="true" />
-              </div>
-              {learner.assessmentDone && (
-                <div className="note-box">
-                  <IconCheck size={22} />
-                  Assessment iniziale completato
-                </div>
-              )}
+              ))}
             </section>
           </div>
 
-          <div className="grid-3">
-            <section className="card" aria-labelledby="mandatory">
-              <h2 id="mandatory" className="h-card">
-                Obbligatori per il tuo profilo
-              </h2>
-              {mandatory.map((e) => {
+          <section id="consigliati" aria-labelledby="consigliati-title" className="rounded-2xl border border-border bg-white p-5 lg:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 id="consigliati-title" className="font-display text-lg font-bold text-brand">
+                  Consigliati per te
+                </h2>
+                <p className="text-sm text-muted-foreground">In base al tuo profilo e alle tue ultime risposte.</p>
+              </div>
+              <Link href="/#episodi" className="inline-flex min-h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-600">
+                Vedi tutti
+              </Link>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {recommended.map((e, i) => {
                 const status = statusOf(e);
+                const featured = i === 0;
+                const isMandatory = e.mandatoryFor.includes(learner.profile);
+                const isRecap = e.num === learner.recapEpisode && status === "done";
+                const cta = status === "now" ? "Riprendi" : status === "done" ? (isRecap ? "Ripasso di 90 secondi" : "Rivedi") : `Disponibile dal mese ${e.month}`;
                 return (
-                  <Link key={e.num} href={`/episodi/${pad(e.num)}`} className="list-item">
-                    <span className="num-chip">{pad(e.num)}</span>
-                    <span className="list-text">
-                      <span className="list-title">{e.title}</span>
-                      <span className="muted-sm">
-                        {e.topic} · mese {e.month}
-                      </span>
-                    </span>
-                    <span className={`pill pill-${status}`}>{STATUS_LABEL[status]}</span>
-                  </Link>
+                  <article
+                    key={e.num}
+                    className={cn(
+                      "flex flex-col rounded-2xl border p-3",
+                      featured ? "border-brand-orange bg-brand-orange-50/40 ring-1 ring-brand-orange" : "border-border",
+                    )}
+                  >
+                    <EpisodeThumb num={e.num} numLabel={pad(e.num)} badge={`${e.durationMin} min`} className="h-36" />
+                    <div className="flex flex-1 flex-col gap-2 px-1 pt-3">
+                      <h3 className="text-sm leading-snug font-bold text-brand">
+                        Ep. {pad(e.num)} · {e.title}
+                      </h3>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {e.area}. {SEASONS.find((s) => s.id === e.season)?.title} «{SEASONS.find((s) => s.id === e.season)?.subtitle}».
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="rounded-md border border-border px-2 py-0.5 text-xs text-slate-600">{e.topic}</span>
+                        <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
+                        {isMandatory && <span className="rounded-md bg-brand-red-50 px-2 py-0.5 text-xs font-semibold text-brand-red">Obbligatorio</span>}
+                      </div>
+                      <div className="mt-auto pt-2">
+                        {status === "next" ? (
+                          <span className="flex min-h-10 w-full items-center justify-center rounded-xl bg-slate-100 text-sm font-semibold text-slate-600">
+                            {cta}
+                          </span>
+                        ) : (
+                          <Link
+                            href={`/episodi/${pad(e.num)}${isRecap ? "?ripasso=1" : ""}`}
+                            className={cn(
+                              "flex min-h-10 w-full items-center justify-center rounded-xl text-sm font-semibold",
+                              featured ? "bg-brand-orange text-brand hover:brightness-95" : "bg-brand-50 text-brand hover:bg-brand hover:text-white",
+                            )}
+                          >
+                            {cta}
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </article>
                 );
               })}
-            </section>
+            </div>
+          </section>
 
-            {recap && (
-              <section className="card" aria-labelledby="recap">
-                <h2 id="recap" className="h-card">
-                  Da ripassare
-                </h2>
-                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                  <div className="recap-icon" aria-hidden="true">
-                    <IconReplay size={24} />
-                  </div>
-                  <div className="stack-16" style={{ gap: 4 }}>
-                    <span className="list-title">
-                      Ripasso di 90 secondi · Ep. {pad(recap.num)} «{recap.title}»
-                    </span>
-                    <span className="muted-sm" style={{ fontSize: 14, lineHeight: 1.5 }}>
-                      Una risposta del Check non era corretta. Rivedi i red flag: {recap.topic}.
-                    </span>
-                  </div>
-                </div>
-                <Link href={`/episodi/${pad(recap.num)}?ripasso=1`} className="btn" style={{ alignSelf: "flex-start" }}>
-                  Guarda il ripasso
-                </Link>
-              </section>
-            )}
-
-            <section id="cyber-card" className="card" aria-labelledby="cards">
-              <div className="row-between">
-                <h2 id="cards" className="h-card">
-                  Cyber Card e badge
-                </h2>
-              </div>
-              <div className="chips">
-                {done.map((e) => (
-                  <span key={e.num} className="chip">
-                    <IconCard size={14} />
-                    {e.topic}
+          <section id="aree" aria-labelledby="aree-title" className="rounded-2xl border border-border bg-white p-5 lg:p-6">
+            <h2 id="aree-title" className="font-display text-lg font-bold text-brand">
+              Aree tematiche
+            </h2>
+            <p className="text-sm text-muted-foreground">I 24 episodi coprono 20 argomenti obbligatori e 5 argomenti extra.</p>
+            <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {areas.map(({ area, count, Icon }, i) => (
+                <li key={area} className="flex items-center gap-3 rounded-xl border border-border p-3">
+                  <span
+                    className={cn(
+                      "flex size-10 shrink-0 items-center justify-center rounded-lg",
+                      ["bg-brand text-white", "bg-brand-orange text-brand", "bg-brand-red text-white", "bg-brand-600 text-white"][i % 4],
+                    )}
+                  >
+                    <Icon size={18} aria-hidden="true" />
                   </span>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: "auto" }}>
-                <div className="stat">
-                  <span className="stat-num">{learner.badges}</span>
-                  <span className="muted-sm">Badge ottenuti</span>
-                </div>
-                <div className="stat dashed">
-                  <span className="stat-num" style={{ color: "var(--muted)" }}>
-                    {extrasDone} / {extrasTotal}
-                  </span>
-                  <span className="muted-sm">Cyber Specialist</span>
-                </div>
-              </div>
-            </section>
-          </div>
+                  <div className="min-w-0 leading-tight">
+                    <p className="text-sm font-semibold text-brand">{area}</p>
+                    <p className="text-xs text-muted-foreground">{count} episodi</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <EpisodeGrid seasons={SEASONS} episodes={tiles} />
 
-          <footer className="footer">
+          <footer className="flex flex-wrap justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
             <span>Contenuti conformi WCAG 2.1 AA · Sottotitoli e trascrizioni su ogni episodio</span>
-            <span>
-              Hai notato un&apos;anomalia? <a href="#" style={{ fontWeight: 600 }}>Segnala un incidente</a>
-            </span>
             <span>Catalogo: {source === "supabase" ? "Supabase" : "dati statici (Supabase non collegato)"}</span>
           </footer>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

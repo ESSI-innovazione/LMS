@@ -3,7 +3,12 @@
 Learning platform for the Corsia Sicura cyber security awareness series: 24 monthly
 episodes in two seasons, with interactive Stop & Decide choices.
 
-Stack: Next.js (App Router, TypeScript) on Vercel, Supabase (Postgres, Auth, Storage), EU regions.
+Stack: Next.js (App Router, TypeScript), Tailwind CSS v4 with the shadcn/ui structure
+(`components/ui`, `lib/utils.ts`, `components.json`), lucide-react icons, Supabase
+(Postgres, Auth, Storage). Hosted on Vercel; EU regions.
+
+Brand: Time Vision logo (`public/brand/`), colours `#003049` (navy), `#fd7835` (orange),
+`#710000` (dark red). Text on orange is navy, because white on orange fails contrast.
 
 ## What is here (step 1)
 
@@ -12,6 +17,7 @@ Stack: Next.js (App Router, TypeScript) on Vercel, Supabase (Postgres, Auth, Sto
 | `/` | Learner home: episode of the month, season progress, mandatory episodes by profile, recap, Cyber Cards, episode catalogue by season |
 | `/episodi/06` | Player with the Ep. 06 Stop & Decide (keys 1–3 work) |
 | `/episodi/NN` | Player shell for the other episodes |
+| `/login` | Sign-in (Supabase e-mail and password, or a one-time link by e-mail) |
 
 Learner data is sample data (`lib/demo.ts`) until login is added. The catalogue is read
 from Supabase when it is configured and seeded, otherwise from `lib/catalog.ts`.
@@ -23,6 +29,12 @@ The footer shows which source is in use.
 2. Paste and run `supabase/migrations/20261125000000_init.sql`.
 3. Paste and run `supabase/seed.sql`.
 4. **Authentication → URL Configuration**: add your Vercel URL and `http://localhost:3000`.
+
+## Create users
+
+Sign-up is closed (`shouldCreateUser: false`). Add users in Supabase:
+**Authentication → Users → Add user** (e-mail and password). A `profiles` row is
+created automatically.
 
 ## Set up Vercel
 

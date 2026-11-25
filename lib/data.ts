@@ -41,7 +41,7 @@ export async function getEpisodes(): Promise<{ episodes: Episode[]; source: Cata
 
     if (error || !data || data.length === 0) return { episodes: EPISODES, source: "static" };
 
-    const episodes: Episode[] = (data as EpisodeRow[]).map((r) => ({
+    const episodes: Episode[] = (data as unknown as EpisodeRow[]).map((r) => ({
       num: r.num,
       season: r.season_id,
       month: r.release_month,
